@@ -1,2 +1,3 @@
-# Fall2021
-This repository contains all the projects and assignments I have done during the Fall 2021 semester at California State University, Fullerton
+# Fall 2021
+
+This repository contains the projects and assignments I worked on for Databases and Opearting System Concepts.
