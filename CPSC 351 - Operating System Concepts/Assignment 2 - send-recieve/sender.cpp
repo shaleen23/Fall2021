@@ -37,12 +37,24 @@ void init(int &shmid, int &msqid, void *&sharedMemPtr) {
     /* TODO: Get the id of the shared memory segment. The size of the segment
      * must be SHARED_MEMORY_CHUNK_SIZE */
     shmid = shmget(key, SHARED_MEMORY_CHUNK_SIZE, 0666);
+    if (shmid < 0) {
+        perror("shmget");
+        exit(-1);
+    }
 
     /* TODO: Attach to the shared memory */
     sharedMemPtr = shmat(shmid, NULL, 0);
+    if (sharedMemPtr < 0) {
+        perror("shmat");
+        exit(-1);
+    }
 
     /* TODO: Attach to the message queue */
-    msgget(key, 0666);
+    msqid = msgget(key, 0666);
+    if (msqid < 0) {
+        perror("msgget");
+        exit(-1);
+    }
 
     /* Store the IDs and the pointer to the shared memory region in the
      * corresponding function parameters */
@@ -57,7 +69,10 @@ void init(int &shmid, int &msqid, void *&sharedMemPtr) {
  */
 void cleanUp(const int &shmid, const int &msqid, void *sharedMemPtr) {
     /* TODO: Detach from shared memory */
-    shmdt(sharedMemPtr);
+    if (shmdt(sharedMemPtr) < 0) {
+        perror("shmdt");
+        exit(-1);
+    }
     printf("Detached shared memory\n\n");
 }
 
@@ -104,15 +119,23 @@ unsigned long sendFile(const char *fileName) {
          * ready to be read (message of type SENDER_DATA_TYPE).
          */
         sndMsg.mtype = SENDER_DATA_TYPE;
-        msgsnd(msqid, &sndMsg, sizeof(message) - sizeof(long), 0);
+        if (msgsnd(msqid, &sndMsg, sizeof(message) - sizeof(long), 0) < 0) {
+            perror("msgsnd");
+            exit(-1);
+        }
         printf("Sent message\n\n");
 
         /* TODO: Wait until the receiver sends us a message of type
          * RECV_DONE_TYPE telling us that he finished saving a chunk of memory.
          */
         rcvMsg.mtype = RECV_DONE_TYPE;
-        msgrcv(msqid, &rcvMsg, sizeof(message) - sizeof(long), RECV_DONE_TYPE,
-               0);
+
+        if (msgrcv(msqid, &rcvMsg, sizeof(message) - sizeof(long),
+                   RECV_DONE_TYPE, 0) < 0) {
+            perror("msgrcv");
+            exit(-1);
+        }
+
         printf("Recieved message\n\n");
     }
 
@@ -123,7 +146,12 @@ unsigned long sendFile(const char *fileName) {
      */
     sndMsg.mtype = SENDER_DATA_TYPE;
     sndMsg.size = 0;
-    msgsnd(msqid, &sndMsg, sizeof(sndMsg) - sizeof(long), 0);
+
+    if (msgsnd(msqid, &sndMsg, sizeof(sndMsg) - sizeof(long), 0) < 0) {
+        perror("msgsnd");
+        exit(-1);
+    }
+
     printf("Sent empty message\n\n");
 
     /* Close the file */
@@ -144,7 +172,7 @@ void sendFileName(const char *fileName) {
      * the maximum buffer size in the fileNameMsg
      * struct. If exceeds, then terminate with an error.
      */
-    if (fileNameSize > MAX_FILE_NAME_SIZE) {
+    if (fileNameSize >= MAX_FILE_NAME_SIZE) {
         printf("Error\n");
         exit(-1);
     }
@@ -158,10 +186,13 @@ void sendFileName(const char *fileName) {
     file.mtype = FILE_NAME_TRANSFER_TYPE;
 
     /* TODO: Set the file name in the message */
-    strcpy(file.fileName, fileName);
+    strncpy(file.fileName, fileName, MAX_FILE_NAME_SIZE);
 
     /* TODO: Send the message using msgsnd */
-    msgsnd(msqid, &file, sizeof(fileNameMsg) - sizeof(long), 0);
+    if (msgsnd(msqid, &file, sizeof(fileNameMsg) - sizeof(long), 0) < 0) {
+        perror("msgsnd");
+        exit(-1);
+    }
     printf("Sent filename\n\n");
 }
 

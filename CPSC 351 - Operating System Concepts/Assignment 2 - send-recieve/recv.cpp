@@ -32,12 +32,15 @@ string recvFileName() {
     fileNameMsg msg = fileNameMsg();
 
     /* TODO: Receive the file name using msgrcv() */
-    msgrcv(msqid, &msg, sizeof(fileNameMsg) - sizeof(long),
-           FILE_NAME_TRANSFER_TYPE, 0);
+    if (msgrcv(msqid, &msg, sizeof(fileNameMsg) - sizeof(long),
+               FILE_NAME_TRANSFER_TYPE, 0) < 0) {
+        perror("msgrcv");
+        exit(-1);
+    }
 
     /* TODO: return the received file name */
     fileName = msg.fileName;
-    printf("Recieved filename\n\n");
+    printf("Recieved filename: %s\n\n", fileName.c_str());
     return fileName;
 }
 /**
@@ -63,13 +66,28 @@ void init(int &shmid, int &msqid, void *&sharedMemPtr) {
 
     /* TODO: Allocate a shared memory segment. The size of the segment must be
      * SHARED_MEMORY_CHUNK_SIZE. */
-    shmid = shmget(key, SHARED_MEMORY_CHUNK_SIZE, 0666);
+    shmid = shmget(key, SHARED_MEMORY_CHUNK_SIZE, 0666 | IPC_CREAT);
+
+    if (shmid < 0) {
+        perror("shmget");
+        exit(-1);
+    }
 
     /* TODO: Attach to the shared memory */
     sharedMemPtr = shmat(shmid, NULL, 0);
 
+    if (sharedMemPtr < 0) {
+        perror("shmat");
+        exit(-1);
+    }
+
     /* TODO: Create a message queue */
-    msgget(key, 0666);
+    msqid = msgget(key, 0666 | IPC_CREAT);
+
+    if (msqid < 0) {
+        perror("msgget");
+        exit(-1);
+    }
 
     /* TODO: Store the IDs and the pointer to the shared memory region in the
      * corresponding parameters */
@@ -123,8 +141,12 @@ unsigned long mainLoop(const char *fileName) {
          */
 
         message rcv;
-        msgrcv(msqid, &rcv, sizeof(message) - sizeof(long), SENDER_DATA_TYPE,
-               0);
+        if (msgrcv(msqid, &rcv, sizeof(message) - sizeof(long),
+                   SENDER_DATA_TYPE, 0) < 0) {
+            perror("msgrcv");
+            exit(-1);
+        }
+
         msgSize = rcv.size;
         printf("Recieved message\n\n");
 
@@ -148,9 +170,14 @@ unsigned long mainLoop(const char *fileName) {
              * RECV_DONE_TYPE.
              */
 
-            message snd;
+            ackMessage snd;
             snd.mtype = RECV_DONE_TYPE;
-            msgsnd(msqid, &snd, sizeof(message) - sizeof(long), 0);
+
+            if (msgsnd(msqid, &snd, sizeof(ackMessage) - sizeof(long), 0) < 0) {
+                perror("msgsnd");
+                exit(-1);
+            }
+
             printf("Sent message\n\n");
         }
         /* We are done */
@@ -171,15 +198,24 @@ unsigned long mainLoop(const char *fileName) {
  */
 void cleanUp(const int &shmid, const int &msqid, void *sharedMemPtr) {
     /* TODO: Detach from shared memory */
-    shmdt(sharedMemPtr);
+    if (shmdt(sharedMemPtr) < 0) {
+        perror("shmdt");
+        exit(-1);
+    }
     printf("Detached shared memory\n\n");
 
     /* TODO: Deallocate the shared memory segment */
-    shmctl(shmid, IPC_RMID, NULL);
+    if (shmctl(shmid, IPC_RMID, NULL) < 0) {
+        perror("shmdt");
+        exit(-1);
+    }
     printf("Deallocated shared memory segment\n\n");
 
     /* TODO: Deallocate the message queue */
-    msgctl(msqid, IPC_RMID, NULL);
+    if (msgctl(msqid, IPC_RMID, NULL) < 0) {
+        perror("shmdt");
+        exit(-1);
+    }
     printf("Deallocated msg queue\n\n");
 }
 
